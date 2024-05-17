@@ -121,17 +121,34 @@ let non_transitive_revdeps st package_set =
   OpamPackage.Set.filter packages_depending_on_target_packages
     all_known_packages
 
+let filter_coinstallable_0install ~packages_dir package revdep =
+  print_endline
+  @@ Printf.sprintf "Solving for package %s" (OpamPackage.to_string revdep);
+  Solver.check_coinstallable ~packages_dir
+    [ OpamPackage.of_string "ocaml.5.1.1"; package; revdep ]
+
 let list_revdeps package no_transitive_revdeps =
   OpamConsole.msg "Listing revdeps for %s\n" (OpamPackage.to_string package);
   let package_set = OpamPackage.Set.singleton package in
   with_unlocked_switch () (fun st ->
+      let rt = st.switch_repos in
+      let default_repo =
+        OpamRepositoryState.get_repo rt (OpamRepositoryName.of_string "default")
+      in
+      let ( / ) = Filename.concat in
+      let packages_dir = OpamUrl.to_string default_repo.repo_url / "packages" in
+      (* Strip file:// from packages_dir *)
+      let packages_dir =
+        String.sub packages_dir 7 (String.length packages_dir - 7)
+      in
       let transitive =
         if no_transitive_revdeps then OpamPackage.Set.empty
         else transitive_revdeps st package_set
       in
       let non_transitive = non_transitive_revdeps st package_set in
       OpamPackage.Set.union transitive non_transitive
-      |> filter_coinstallable st package_set)
+      |> OpamPackage.Set.filter
+           (filter_coinstallable_0install ~packages_dir package))
 
 let find_latest_versions packages =
   let open OpamPackage in

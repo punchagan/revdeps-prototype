@@ -24,7 +24,8 @@
   dune
   sexplib0
   (opam-client
-   (>= 2.2)))
+   (>= 2.2))
+  opam-0install)
  (tags
   (topics "to describe" your project)))
 
