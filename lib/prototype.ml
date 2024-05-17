@@ -129,6 +129,51 @@ let take n l =
   in
   aux n [] l
 
+let check_coinstallable ~st package =
+  OpamCoreConfig.update ~verbose_level:1 ();
+  OpamCoreConfig.update ~debug_level:1 ();
+  let package_deps =
+    OpamSwitchState.dependencies st ~build:false ~post:false ~depopts:false
+      ~installed:false ~unavailable:false
+      (OpamPackage.Set.singleton package)
+  in
+  let package_deps_names = OpamPackage.to_map package_deps in
+  fun revdep ->
+    (* FIXME: The bugs received here are for all possible versions? This
+       doesn't work correctly. *)
+    let deps =
+      OpamSwitchState.dependencies st ~build:false ~post:false ~depopts:false
+        ~installed:false ~unavailable:false
+        (OpamPackage.Set.singleton revdep)
+    in
+    print_endline
+    @@ Printf.sprintf "Dependencies: %s" (OpamPackage.to_string revdep);
+    OpamPackage.Set.iter (fun p -> print_endline (OpamPackage.to_string p)) deps;
+    print_endline "---------------------------------------------";
+    flush_all ();
+
+    let names = OpamPackage.to_map deps in
+    let make_name_set m =
+      OpamPackage.Name.Set.of_list (OpamPackage.Name.Map.keys m)
+    in
+    let common_names =
+      OpamPackage.Name.Set.inter
+        (make_name_set package_deps_names)
+        (make_name_set names)
+    in
+    let conflicts =
+      common_names |> OpamPackage.Name.Set.to_list
+      |> List.map (fun name ->
+             let v1 = OpamPackage.Name.Map.find name package_deps_names in
+             let v2 = OpamPackage.Name.Map.find name names in
+             OpamPackage.Version.Set.inter v1 v2
+             |> OpamPackage.Version.Set.is_empty)
+      |> List.filter (fun x -> x)
+      |> List.length
+    in
+    print_endline (Printf.sprintf "Conflicts: %d" conflicts);
+    conflicts = 0
+
 let find_latest_versions packages =
   let open OpamPackage in
   let versions_map = to_map packages in
@@ -148,9 +193,7 @@ let list_revdeps package no_transitive_revdeps =
       in
       let non_transitive = non_transitive_revdeps st package_set in
       OpamPackage.Set.union transitive non_transitive
-      (* |> OpamPackage.Set.elements |> take 3 |> OpamPackage.Set.of_list *)
-      |> find_latest_versions
-      |> OpamPackage.Set.filter (filter_coinstallable_0install package))
+      |> OpamPackage.Set.filter (check_coinstallable ~st package))
 
 let install_and_test_package_with_opam package revdep =
   OpamConsole.msg "Installing and testing: package - %s; revdep - %s\n"
