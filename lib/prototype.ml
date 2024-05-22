@@ -127,6 +127,23 @@ let filter_coinstallable_0install ~packages_dir package revdep =
   Solver.check_coinstallable ~packages_dir
     [ OpamPackage.of_string "ocaml.5.1.1"; package; revdep ]
 
+let take n l =
+  let rec aux n acc = function
+    | [] -> List.rev acc
+    | _ when n = 0 -> List.rev acc
+    | x :: xs -> aux (n - 1) (x :: acc) xs
+  in
+  aux n [] l
+
+let find_latest_versions packages =
+  let open OpamPackage in
+  let versions_map = to_map packages in
+  Name.Map.fold
+    (fun name _versions acc ->
+      let latest_version = max_version packages name in
+      Set.add latest_version acc)
+    versions_map Set.empty
+
 let list_revdeps package no_transitive_revdeps =
   OpamConsole.msg "Listing revdeps for %s\n" (OpamPackage.to_string package);
   let package_set = OpamPackage.Set.singleton package in
@@ -147,17 +164,10 @@ let list_revdeps package no_transitive_revdeps =
       in
       let non_transitive = non_transitive_revdeps st package_set in
       OpamPackage.Set.union transitive non_transitive
+      (* |> OpamPackage.Set.elements |> take 3 |> OpamPackage.Set.of_list *)
+      |> find_latest_versions
       |> OpamPackage.Set.filter
            (filter_coinstallable_0install ~packages_dir package))
-
-let find_latest_versions packages =
-  let open OpamPackage in
-  let versions_map = to_map packages in
-  Name.Map.fold
-    (fun name _versions acc ->
-      let latest_version = max_version packages name in
-      Set.add latest_version acc)
-    versions_map Set.empty
 
 let install_and_test_package_with_opam package revdep =
   OpamConsole.msg "Installing and testing: package - %s; revdep - %s\n"
