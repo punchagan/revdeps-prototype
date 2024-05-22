@@ -1,4 +1,25 @@
-module Solver = Opam_0install.Solver.Make (Opam_0install.Dir_context)
+(* Cached Solver for 0install *)
+module Cached_dir_context = struct
+  include Opam_0install.Dir_context
+
+  let cache = Hashtbl.create 100000
+
+  let candidates t name =
+    match Hashtbl.find_opt cache name with
+    | Some x -> x
+    | None ->
+        let r = candidates t name in
+        print_endline
+          (Printf.sprintf "candidates %s: %d"
+             (OpamPackage.Name.to_string name)
+             (List.length r));
+        Hashtbl.add cache name r;
+        r
+end
+
+module Solver = Opam_0install.Solver.Make (Cached_dir_context)
+
+(* module Solver = Opam_0install.Solver.Make (Opam_0install.Dir_context) *)
 
 let check_coinstallable ~local_repo_dir packages =
   let env =
