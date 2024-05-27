@@ -121,10 +121,10 @@ let non_transitive_revdeps st package_set =
   OpamPackage.Set.filter packages_depending_on_target_packages
     all_known_packages
 
-let filter_coinstallable_0install ~packages_dir package revdep =
+let filter_coinstallable_0install ~universe ~packages_dir package revdep =
   print_endline
   @@ Printf.sprintf "Solving for package %s" (OpamPackage.to_string revdep);
-  Solver.check_coinstallable ~packages_dir
+  Solver.check_coinstallable ~universe ~packages_dir
     [ OpamPackage.of_string "ocaml.5.1.1"; package; revdep ]
 
 let take n l =
@@ -163,11 +163,16 @@ let list_revdeps package no_transitive_revdeps =
         else transitive_revdeps st package_set
       in
       let non_transitive = non_transitive_revdeps st package_set in
+      let universe =
+        OpamSwitchState.universe st (* FIXME: *)
+          ~requested:(OpamPackage.Set.singleton package)
+          Query
+      in
       OpamPackage.Set.union transitive non_transitive
       (* |> OpamPackage.Set.elements |> take 3 |> OpamPackage.Set.of_list *)
-      |> find_latest_versions
+      (* |> find_latest_versions *)
       |> OpamPackage.Set.filter
-           (filter_coinstallable_0install ~packages_dir package))
+           (filter_coinstallable_0install ~universe ~packages_dir package))
 
 let install_and_test_package_with_opam package revdep =
   OpamConsole.msg "Installing and testing: package - %s; revdep - %s\n"
